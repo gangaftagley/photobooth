@@ -29,7 +29,6 @@ GP_PIR = 19
 
 #Setup Button GPIO to read
 GPIO.setup(GP_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-# GPIO.setup(GP_PIR, GPIO.IN)
 
 #initialise global variables
 Message = ""  # Message is a fullscreen message
@@ -42,23 +41,23 @@ imagecounter = 0
 foldername = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 pygame.font.init()
+# Dimensions (pixels)
 SCREEN_W = 800
 SCREEN_H = 480
+THUMB_W = 720
+THUMB_H = 540
+COUNTDOWN_LOCATION = (400, 240)
+## reserved room at bottom for countdown (Not used so set to 0)
+BOTTOM_RESERVE = 0
+# Colors
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 BLACK = (0, 0, 0)
-COUNTDOWN_LOCATION = (400, 240)
+
 N_COUNTDOWN = 5
-## reserved room at bottom for countdown (Not used so set to 0)
-BOTTOM_RESERVE = 0
+
 
 camera = picamera.PiCamera()
-#camera.led = False
-#deprecated 
-#camera.preview_alpha = 150
-#camera.preview_window = (10, 10, SCREEN_W-10, SCREEN_H - BOTTOM_RESERVE)
-#camera.preview_fullscreen = False
-
 
 #initialise pygame
 pygame.mixer.pre_init(44100, -16, 1, 1024*3)  # PreInit Music, plays faster
@@ -91,22 +90,15 @@ def startup():
     #Initialise the camera object
     camera.vflip = False
     camera.hflip = True
-    #camera.rotation = 90 
+    #camera.rotation = 90
     camera.brightness = 45
     camera.exposure_compensation = 6
     camera.contrast = 8
-    camera.resolution = (1440, 1080)
-    #Start the preview
-    camera.start_preview(alpha=150,
-                         fullscreen=False,
-                         window=(12,12, SCREEN_W-24, SCREEN_H - 12 - BOTTOM_RESERVE))
+    camera.resolution = (THUMB_W, THUMB_H)
 
     Message = "Loading..."
     UpdateDisplay(Message)
     time.sleep(.75)
-    #pygame.quit()
-    camera.stop_preview()
-    waitingforbutton()
     return
 
 
@@ -122,17 +114,10 @@ def UpdateDisplay(Message, SmallText="Jesse & Brittany's Wedding"):
     smallfont = pygame.font.Font(None, 50)  # Small font for banner message
     SmallText = smallfont.render(SmallText, 1, (255, 0, 0))
     background.blit(SmallText, (10, 445))  # Write the small text
-    
+
     if(Message != ""):  # If the big message exits write it
         font = pygame.font.Font(None, 180)
         text = font.render(Message, 1, (255, 0, 0))
-        textpos = text.get_rect()
-        textpos.centerx = background.get_rect().centerx
-        textpos.centery = background.get_rect().centery
-        background.blit(text, textpos)
-    elif(Numeral != ""):  # Else if the number exists display it
-        font = pygame.font.Font(None, 800)
-        text = font.render(Numeral, 1, (255, 0, 0))
         textpos = text.get_rect()
         textpos.centerx = background.get_rect().centerx
         textpos.centery = background.get_rect().centery
@@ -170,16 +155,8 @@ def waitingforbutton():
     if imagecounter > papertraycount:
         outofpaper()
 
-    #Initialise the camera object
     pygame.mouse.set_visible(0)
-    camera.vflip = False
-    camera.hflip = True
-    #camera.rotation = 90
-    camera.brightness = 45
-    camera.exposure_compensation = 6
-    camera.contrast = 8
-    camera.resolution = (1440, 1080)
-    #Start the preview
+    
     camera.start_preview(alpha=150,
                          fullscreen=False,
                          window=(12,12, SCREEN_W-24, SCREEN_H - 12 - BOTTOM_RESERVE))
@@ -334,8 +311,6 @@ def takepictures():
     # Save the final image
     bgimage.save(Final_Image_Name)
 
-    # #Save a temp file to print
-    # bgimage.save('/tmp/tempprint.jpg')
     printpicture(Final_Image_Name)
 
 
