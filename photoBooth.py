@@ -14,6 +14,7 @@ import datetime
 import PIL.Image
 import cups
 from PIL import Image
+import yaml
 
 #from threading import Thread
 from pygame.locals import *
@@ -31,8 +32,8 @@ GP_PIR = 19
 GPIO.setup(GP_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 #initialise global variables
-Message = ""  # Message is a fullscreen message
-SmallText = ""  # SmallMessage is a lower banner message
+#Message = ""  # Message is a fullscreen message
+#SmallText = ""  # SmallMessage is a lower banner message
 global imagecounter
 global papertraycount
 papertraycount = 18
@@ -49,10 +50,6 @@ THUMB_H = 540
 COUNTDOWN_LOCATION = (400, 240)
 ## reserved room at bottom for countdown (Not used so set to 0)
 BOTTOM_RESERVE = 0
-# Colors
-WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-BLACK = (0, 0, 0)
 
 N_COUNTDOWN = 5
 
@@ -63,8 +60,9 @@ camera = picamera.PiCamera()
 pygame.mixer.pre_init(44100, -16, 1, 1024*3)  # PreInit Music, plays faster
 pygame.init()  # Initialise pygame
 screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), pygame.FULLSCREEN)
-background = pygame.Surface(screen.get_size())  # Create the background object
-background = background.convert()  # Convert it to a background
+surface = pygame.image.load('screen.jpg')  # Create the background object
+surface = pygame.transform.scale(surface, (SCREEN_W, SCREEN_H))
+background = surface.convert()  # Convert it to a background
 
 
 #########################################
@@ -109,23 +107,22 @@ def UpdateDisplay(Message, SmallText="Jesse & Brittany's Wedding"):
     global screen
     global background
     global pygame
+    local_screen = background.copy()
+    text_color = (46, 65, 95)
 
-    background.fill(pygame.Color("black"))  # Black background
     smallfont = pygame.font.Font(None, 50)  # Small font for banner message
-    SmallText = smallfont.render(SmallText, 1, (255, 0, 0))
-    background.blit(SmallText, (10, 445))  # Write the small text
+    SmallText = smallfont.render(SmallText, 1, text_color)
+    local_screen.blit(SmallText, (10, 445))  # Write the small text
 
     if(Message != ""):  # If the big message exits write it
         font = pygame.font.Font(None, 180)
-        text = font.render(Message, 1, (255, 0, 0))
+        text = font.render(Message, 1, text_color)
         textpos = text.get_rect()
         textpos.centerx = background.get_rect().centerx
         textpos.centery = background.get_rect().centery
-        background.blit(text, textpos)
+        local_screen.blit(text, textpos)
 
-    screen.blit(background, (0, 0))
-    # Draw the red outer box
-    pygame.draw.rect(screen, pygame.Color("red"), (10, 10, SCREEN_W-10, SCREEN_H-10), 2)
+    screen.blit(local_screen, (0, 0))
     pygame.display.flip()
 
     return
@@ -156,7 +153,7 @@ def waitingforbutton():
         outofpaper()
 
     pygame.mouse.set_visible(0)
-    
+
     camera.start_preview(alpha=150,
                          fullscreen=False,
                          window=(12,12, SCREEN_W-24, SCREEN_H - 12 - BOTTOM_RESERVE))
