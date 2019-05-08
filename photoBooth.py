@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-
 # Photo Booth Script
-
 
 ##Imports
 import RPi.GPIO as GPIO
@@ -32,27 +30,23 @@ GP_PIR = 19
 GPIO.setup(GP_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 #initialise global variables
-#Message = ""  # Message is a fullscreen message
-#SmallText = ""  # SmallMessage is a lower banner message
+
 global imagecounter
 global papertraycount
+global paperbundle
 papertraycount = 18
-imagecounter = 0
+imagecounter = 1
+paperbundle = 1
 
 foldername = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 pygame.font.init()
+
 # Dimensions (pixels)
 SCREEN_W = 800
 SCREEN_H = 480
 THUMB_W = 720
 THUMB_H = 540
-COUNTDOWN_LOCATION = (400, 240)
-## reserved room at bottom for countdown (Not used so set to 0)
-BOTTOM_RESERVE = 0
-
-N_COUNTDOWN = 5
-
 
 camera = picamera.PiCamera()
 
@@ -92,18 +86,17 @@ def startup():
     camera.brightness = 45
     camera.exposure_compensation = 6
     camera.contrast = 8
-    camera.resolution = (THUMB_W, THUMB_H)
 
     Message = "Loading..."
     UpdateDisplay(Message)
     time.sleep(.75)
+    waitingforbutton()
     return
 
 
 #UpdateDisplay - Thread to update the display, neat generic procedure
 def UpdateDisplay(Message, SmallText="Jesse & Brittany's Wedding"):
     #init global variables from main thread
-    global TotalImageCount
     global screen
     global background
     global pygame
@@ -129,15 +122,21 @@ def UpdateDisplay(Message, SmallText="Jesse & Brittany's Wedding"):
 
 
 def outofpaper():
+    global imagecounter
+    global papertraycount
+    global paperbundle
     Message = "Out of Paper!"
-    SmallText = "Better go tell Andrew"
+    SmallText = "Better go tell Captain"
     camera.stop_preview()
     UpdateDisplay(Message, SmallText)
-    while True:
+    while imagecounter > papertraycount * paperbundle:
         for event in pygame.event.get():
             if event.type == QUIT:
                 return
             elif event.type == KEYDOWN:
+                if event.key == K_SPACE:
+                    paperbundle += 1
+                    print("Paper tray was reloaded")
                 if event.key == K_ESCAPE:
                     loopct = 0
                     while loopct < 50:
@@ -145,18 +144,19 @@ def outofpaper():
                         print("Ending because ESCAPE key was pressed")
                     pygame.quit()
                     exit(0)
+    return
 
 
 def waitingforbutton():
     #Check number of prints is less then PaperTrayCount
-    if imagecounter > papertraycount:
+    if imagecounter > papertraycount * paperbundle:
         outofpaper()
 
     pygame.mouse.set_visible(0)
 
     camera.start_preview(alpha=150,
                          fullscreen=False,
-                         window=(12,12, SCREEN_W-24, SCREEN_H - 12 - BOTTOM_RESERVE))
+                         window=(12,12, SCREEN_W-24, SCREEN_H - 12 ))
 
     # Start checking for button press every .2 seconds
     #  for 30 seconds or a loop of 150
@@ -274,7 +274,6 @@ def takepictures():
     global imagecounter
     camera.resolution = (1440, 1080)
     images = []
-    imagecounter += 1
     for sub in range(4):
         Message = "Get Ready!"
         smalltext = "Picture Number One"
@@ -293,7 +292,7 @@ def takepictures():
     #1800 x 1200
     bgimage = PIL.Image.open("/home/pi/photoBooth/template.jpg")
 
-    # #thumbnail the 4 images
+    #thumbnail the 4 images
     for x in range(4):
         images[x].thumbnail((720, 540))
 
@@ -309,6 +308,8 @@ def takepictures():
     bgimage.save(Final_Image_Name)
 
     printpicture(Final_Image_Name)
+
+    imagecounter += 1
 
 
 ##############################################################################
