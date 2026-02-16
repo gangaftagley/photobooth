@@ -6,12 +6,13 @@ import RPi.GPIO as GPIO
 import time
 import os
 import logging
-import picamera
 import pygame
 import datetime
 import PIL.Image
 from PIL import Image
 from pygame.locals import *
+from picamera2 import Picamera2
+from libcamera import Transform
 
 from config import load_config, save_config, resolve_path
 from settings_gui import run_settings
@@ -55,12 +56,23 @@ surface = pygame.transform.scale(surface, (SCREEN_W, SCREEN_H))
 background = surface.convert()
 
 # --- Step 3: Init camera ---
-camera = picamera.PiCamera()
-camera.vflip = False
-camera.hflip = True
-camera.brightness = 45
-camera.exposure_compensation = 6
-camera.contrast = 8
+camera = Picamera2()
+
+# Preview config: sized for the pygame display area, hflip to mirror
+preview_config = camera.create_preview_configuration(
+    main={"size": (SCREEN_W - 24, SCREEN_H - 12), "format": "RGB888"},
+    transform=Transform(hflip=True),
+)
+
+# Capture config: high resolution for the final photos
+capture_config = camera.create_still_configuration(
+    main={"size": (1440, 1080)},
+    transform=Transform(hflip=True),
+)
+
+camera.configure(preview_config)
+camera.start()
+camera_previewing = False
 
 # --- Step 4: Init printer ---
 booth_printer = Printer(
@@ -199,7 +211,8 @@ def check_paper():
 
 def outofpaper():
     """Display out-of-paper message with SOS LED. Space to reload, Escape to quit."""
-    camera.stop_preview()
+    global camera_previewing
+    camera_previewing = False
     led_off()
     UpdateDisplay("Out of Paper!", "Press SPACE after loading paper")
 
@@ -226,12 +239,31 @@ def outofpaper():
             time.sleep(0.5)
 
 
+def show_camera_preview():
+    """Capture a frame from the camera and blit it onto the pygame screen."""
+    try:
+        frame = camera.capture_array()
+        preview_surface = pygame.image.frombuffer(
+            frame.data, (frame.shape[1], frame.shape[0]), 'RGB'
+        )
+        screen.blit(preview_surface, (12, 12))
+    except Exception as e:
+        logging.debug("Preview frame error: %s", e)
+
+
 def waitingforbutton():
     """Wait for button press, screen tap, or keyboard input. Shows camera preview."""
+    global camera_previewing
+
     if not check_paper():
         outofpaper()
 
     led_on()  # Light up — booth is ready
+
+    # Switch to preview mode if we were in capture mode
+    if not camera_previewing:
+        camera.switch_mode(preview_config)
+        camera_previewing = True
 
     if gpio_available:
         prompt = "Press the button!"
@@ -239,12 +271,6 @@ def waitingforbutton():
     else:
         prompt = "Tap the screen!"
         pygame.mouse.set_visible(1)
-
-    camera.start_preview(
-        alpha=150,
-        fullscreen=False,
-        window=(12, 12, SCREEN_W - 24, SCREEN_H - 12),
-    )
 
     loopct = 0
     while loopct < 150:
@@ -274,8 +300,21 @@ def waitingforbutton():
             buttonpressed()
             loopct = 100000
 
-        UpdateDisplay(Message, prompt)
-        time.sleep(0.2)
+        # Draw camera preview with text overlay
+        show_camera_preview()
+        text_color = tuple(config['display']['text_color'])
+        smallfont = pygame.font.Font(None, 50)
+        rendered_prompt = smallfont.render(prompt, 1, text_color)
+        screen.blit(rendered_prompt, (10, 445))
+        if Message.strip():
+            font = pygame.font.Font(None, 180)
+            text = font.render(Message, 1, text_color)
+            textpos = text.get_rect()
+            textpos.centerx = SCREEN_W // 2
+            textpos.centery = SCREEN_H // 2
+            screen.blit(text, textpos)
+        pygame.display.flip()
+        time.sleep(0.05)  # ~20fps preview
 
 
 def instructions():
@@ -305,21 +344,22 @@ def countdown(text):
 
 
 def take_picture(img, sub):
-    """Capture a single photo, return PIL Image (flipped)."""
+    """Capture a single photo, return PIL Image."""
+    global camera_previewing
     filename = "image%d_%d.jpg" % (img, sub)
+    filepath = os.path.join(foldername, filename)
     UpdateDisplay("SMILE!")
     time.sleep(0.75)
     pygame.mixer.music.load(resolve_path('camera.mp3'))
     pygame.mixer.music.play(0)
-    camera.capture(os.path.join(foldername, filename))
-    return PIL.Image.open(
-        os.path.join(foldername, filename)
-    ).transpose(Image.FLIP_LEFT_RIGHT)
+    # Switch to high-res capture mode and take the photo
+    camera.switch_mode_and_capture_file(capture_config, filepath)
+    camera_previewing = False
+    return PIL.Image.open(filepath)
 
 
 def takepictures():
     """Take 4 pictures, composite onto template, and print."""
-    camera.resolution = (1440, 1080)
     images = []
     picture_labels = [
         "Picture Number One",
@@ -352,7 +392,6 @@ def takepictures():
     bgimage.save(Final_Image_Name)
 
     # Print with status updates on screen
-    camera.stop_preview()
 
     def on_print_status(msg):
         UpdateDisplay(msg)
