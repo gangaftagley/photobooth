@@ -31,6 +31,21 @@ class Printer:
         self._conn = None
         self._printer_name = None
 
+    def is_available(self):
+        """Check if a printer is connected and reachable. Returns True/False."""
+        try:
+            conn = cups.Connection()
+            printers = conn.getPrinters()
+            if not printers:
+                return False
+            self._conn = conn
+            self._printer_name = next(iter(printers.keys()))
+            logger.info("Printer found: %s", self._printer_name)
+            return True
+        except Exception as e:
+            logger.warning("No printer available: %s", e)
+            return False
+
     def _connect(self):
         """Get or create a CUPS connection. Reconnects if stale."""
         try:

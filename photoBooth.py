@@ -79,6 +79,7 @@ booth_printer = Printer(
     max_retries=config['printing']['max_retries'],
     retry_delay=config['printing']['retry_delay'],
 )
+printer_available = booth_printer.is_available()
 
 # Session folder
 foldername = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -199,6 +200,9 @@ def UpdateDisplay(Message, SmallText=None):
 
 def check_paper():
     """Check if paper is available via counter and printer status."""
+    if not printer_available:
+        return True  # No printer — no paper problem
+
     images_printed = config['state']['images_printed']
     tray_count = config['printing']['paper_tray_count']
     bundles = config['state']['paper_bundles_loaded']
@@ -391,23 +395,26 @@ def takepictures():
     Final_Image_Name = os.path.join(foldername, "Final_%d.jpg" % img_number)
     bgimage.save(Final_Image_Name)
 
-    # Print with status updates on screen
+    # Print or save
+    if printer_available:
+        def on_print_status(msg):
+            UpdateDisplay(msg)
 
-    def on_print_status(msg):
-        UpdateDisplay(msg)
+        success = booth_printer.print_file(
+            os.path.abspath(Final_Image_Name),
+            on_status=on_print_status,
+        )
 
-    success = booth_printer.print_file(
-        os.path.abspath(Final_Image_Name),
-        on_status=on_print_status,
-    )
-
-    if success:
-        config['state']['images_printed'] += 1
-        save_config(config)
-        UpdateDisplay("Done!")
-        time.sleep(2)
+        if success:
+            config['state']['images_printed'] += 1
+            save_config(config)
+            UpdateDisplay("Done!")
+            time.sleep(2)
+        else:
+            UpdateDisplay("Print Failed!", "Press button to try again")
+            time.sleep(3)
     else:
-        UpdateDisplay("Print Failed!", "Press button to try again")
+        UpdateDisplay("Saved!", os.path.abspath(Final_Image_Name))
         time.sleep(3)
 
 
@@ -442,6 +449,12 @@ if gpio_available:
     UpdateDisplay("Button OK", "GPIO test passed")
 else:
     UpdateDisplay("No Button", "Using touchscreen mode")
+time.sleep(2)
+
+if printer_available:
+    UpdateDisplay("Printer OK", booth_printer._printer_name)
+else:
+    UpdateDisplay("No Printer", "Photos will be saved only")
 time.sleep(2)
 
 # Main loop
