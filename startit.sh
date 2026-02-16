@@ -1,0 +1,2 @@
+cd ~/photoBooth/
+./photoBooth.py

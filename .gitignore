@@ -1,0 +1,8 @@
+Photos/*
+
+# Photo session folders (timestamped)
+20*/
+
+# Python
+__pycache__/
+*.pyc

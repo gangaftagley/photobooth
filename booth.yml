@@ -1,0 +1,15 @@
+display:
+  banner_text: Captains Photobooth
+  text_color:
+  - 46
+  - 65
+  - 95
+  screen_image: screen.jpg
+printing:
+  template_image: template.jpg
+  paper_tray_count: 18
+  max_retries: 3
+  retry_delay: 5
+state:
+  images_printed: 0
+  paper_bundles_loaded: 1
