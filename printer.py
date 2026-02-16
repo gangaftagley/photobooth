@@ -32,16 +32,24 @@ class Printer:
         self._printer_name = None
 
     def is_available(self):
-        """Check if a printer is connected and reachable. Returns True/False."""
+        """Check if a local (USB) printer is connected and reachable. Returns True/False."""
         try:
             conn = cups.Connection()
             printers = conn.getPrinters()
             if not printers:
                 return False
-            self._conn = conn
-            self._printer_name = next(iter(printers.keys()))
-            logger.info("Printer found: %s", self._printer_name)
-            return True
+
+            # Only use local printers (USB, serial, parallel) — skip network printers
+            for name, props in printers.items():
+                uri = props.get('device-uri', '')
+                if uri.startswith(('usb://', 'serial:', 'parallel:')):
+                    self._conn = conn
+                    self._printer_name = name
+                    logger.info("Local printer found: %s (%s)", name, uri)
+                    return True
+
+            logger.warning("No local printers found (network printers ignored)")
+            return False
         except Exception as e:
             logger.warning("No printer available: %s", e)
             return False
